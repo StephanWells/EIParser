@@ -1,0 +1,18 @@
+{
+    "tasks": [
+        {
+            "type": "npm",
+            "script": "tsc",
+            "problemMatcher": [],
+            "label": "npm: tsc",
+            "detail": "tsc",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        }
+    ]
+}
