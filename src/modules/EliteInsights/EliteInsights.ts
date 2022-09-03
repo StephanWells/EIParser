@@ -14,20 +14,24 @@ export default class EliteInsights {
 
     public static instance() {
         if (!this._eliteInsights) {
-            throw Error("Failed to instantiate EliteInsights module");
+            throw Error(`Failed to instantiate EliteInsights module`);
         }
         return this._eliteInsights;
     }
 
     private static _eliteInsights: EliteInsights | undefined;
     private _config: IConfig;
+    private _successes: number;
+    private _failures: number;
 
     constructor(config: IConfig) {
         this._config = config;
+        this._successes = 0;
+        this._failures = 0;
     }
 
     private async clearParsedFolder(): Promise<void> {
-        Logger.log(Logger.Severity.Info, "Clearing parsed folder");
+        Logger.log(Logger.Severity.Info, `Clearing parsed folder`);
         fs.readdir(Constants.PARSED_FOLDER, (err, files) => {
             if (err) throw err;
 
@@ -40,21 +44,22 @@ export default class EliteInsights {
     }
 
     private async evtcToJson(evtcPath: string): Promise<void> {
-        Logger.log(Logger.Severity.Debug, `Converting .evtc file with path ${evtcPath} to .json`);
         return new Promise((resolve, reject) => {
             execFile(
                 this._config.EliteInsightsEXE,
                 ["-c", path.resolve(Constants.SETTINGS_FILE), evtcPath],
                 (err) => {
                     if (err) {
+                        Logger.logError(Logger.Severity.Error, err);
+                        this._failures++;
                         reject();
-                        throw err;
                     } else {
-                        resolve();
                         Logger.log(
                             Logger.Severity.Debug,
                             `Converted .evtc file with path ${evtcPath} to .json`
                         );
+                        this._successes++;
+                        resolve();
                     }
                 }
             );
@@ -67,21 +72,22 @@ export default class EliteInsights {
         return new Promise((resolve, reject) => {
             fs.readdir(path.resolve(Constants.PARSED_FOLDER), (err, parsedFiles) => {
                 if (err) {
-                    Logger.log(Logger.Severity.Warn, "Could not read parsed files");
-                    Logger.logError(Logger.Severity.Debug, err);
+                    Logger.log(Logger.Severity.Error, `Could not read parsed files`);
                     reject();
+                    throw err;
                 }
 
                 fs.readdir(path.resolve(Constants.DATA_FOLDER), (err, files) => {
                     if (err) {
-                        Logger.log(Logger.Severity.Warn, `Could not read EVTC files`);
-                        Logger.logError(Logger.Severity.Debug, err);
+                        Logger.log(Logger.Severity.Error, `Could not read EVTC files`);
                         reject();
+                        throw err;
                     }
                     const promises: Promise<void>[] = [];
-                    let i: number = 0;
+                    let i = 0;
 
                     files.forEach((file) => {
+                        Logger.log(Logger.Severity.Debug, `Checking file ${i + 1}/${files.length} - ${file}`);
                         if (path.extname(file) === ".zevtc" || path.extname(file) === ".evtc") {
                             if (
                                 !parsedFiles.find((parsedFile) =>
@@ -91,26 +97,38 @@ export default class EliteInsights {
                                 promises.push(
                                     this.evtcToJson(path.join(path.resolve(Constants.DATA_FOLDER), file))
                                 );
-                                i++;
+                            } else {
+                                Logger.log(Logger.Severity.Debug, `${file} already parsed`);
                             }
+                        } else {
+                            Logger.log(Logger.Severity.Debug, `${file} is not a valid log file`);
                         }
+                        i++;
                     });
 
-                    Promise.all(promises).then(() => {
+                    Promise.allSettled(promises).then(() => {
                         fs.unlink(Constants.SETTINGS_FILE, (err) => {
                             if (err) {
-                                Logger.log(Logger.Severity.Warn, "Could not remove temp.conf settings file");
+                                Logger.log(Logger.Severity.Warn, `Could not remove temp.conf settings file`);
                                 Logger.logError(Logger.Severity.Debug, err);
+                            } else {
+                                Logger.log(
+                                    Logger.Severity.Debug,
+                                    `Successfully removed temp.conf settings file`
+                                );
                             }
-
-                            Logger.log(Logger.Severity.Debug, "Successfully removed temp.conf settings file");
                         });
                         Logger.log(
                             Logger.Severity.Info,
-                            i !== 0
-                                ? `Successfully parsed ${i} EVTC files to ${Constants.PARSED_FOLDER}`
+                            this._successes !== 0
+                                ? `Successfully parsed ${this._successes + 1} / ${i + 1} EVTC files to ${
+                                      Constants.PARSED_FOLDER
+                                  }`
                                 : `No new EVTC files to parse`
                         );
+                        if (this._failures !== 0) {
+                            Logger.log(Logger.Severity.Warn, `There were ${this._failures} failures`);
+                        }
                         resolve();
                     });
                 });

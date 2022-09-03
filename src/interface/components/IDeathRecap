@@ -1,0 +1,15 @@
+export default interface IDeathRecap {
+    deathTime: number;
+    toDown: {
+        id: number;
+        src: string;
+        damage: number;
+        time: number;
+    }[];
+    toKill: {
+        id: number;
+        src: string;
+        damage: number;
+        time: number;
+    }[];
+}

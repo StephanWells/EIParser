@@ -2,7 +2,9 @@ import * as fs from "fs";
 import * as path from "path";
 import { Constants } from "./constants/Constants";
 import IConfig from "./interface/IConfig";
+import IEvtc from "./interface/IEvtc";
 import EliteInsights from "./modules/EliteInsights/EliteInsights";
+import { JsonImporter } from "./modules/Json/JsonImporter";
 import { Logger } from "./util/Logger";
 
 export class App {
@@ -40,6 +42,8 @@ export class App {
     public async run() {
         EliteInsights.initiate(this._config);
         await EliteInsights.instance().runParser();
+
+        const parsedFiles: IEvtc[] = await JsonImporter.runParser();
     }
 }
 
